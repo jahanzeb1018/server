@@ -14,20 +14,15 @@ const io = socketIo(server, {
 
 app.use(cors());
 
-// Ruta para verificar que el servidor está corriendo
 app.get('/', (req, res) => {
   res.send('Boat Tracker Server is running');
 });
 
-// Evento cuando un cliente se conecta
 io.on('connection', (socket) => {
   console.log('A client connected');
 
-  // Recibir la ubicación de un barco
   socket.on('sendLocation', (data) => {
     console.log('Received location:', data);
-
-    // Retransmitir la ubicación a todos los clientes conectados
     io.emit('updateLocation', data);
   });
 
@@ -36,8 +31,8 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 8080;
-
+// Usa process.env.PORT o el puerto 3000 por defecto
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
