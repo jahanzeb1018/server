@@ -1,39 +1,36 @@
+// server.js (Backend)
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
-});
+const io = socketIo(server);
 
-app.use(cors());
+let boats = {}; // Mantener un objeto de barcos conectados
 
-app.get('/', (req, res) => {
-  res.send('Boat Tracker Server is running');
-});
-
+// Cuando un cliente se conecta
 io.on('connection', (socket) => {
-  console.log('A client connected');
+  console.log('Nuevo cliente conectado');
 
+  // Recibir la ubicación del barco desde la app móvil y emitirla a todos los clientes
   socket.on('sendLocation', (data) => {
-    console.log('Received location:', data);
-    io.emit('updateLocation', data);
+    // Guardamos la ubicación del barco en el objeto de barcos
+    boats[socket.id] = data;
+
+    // Emitimos la ubicación a todos los clientes
+    io.emit('updateLocation', { id: socket.id, ...data });
   });
 
+  // Cuando un cliente se desconecta
   socket.on('disconnect', () => {
-    console.log('A client disconnected');
+    console.log('Cliente desconectado');
+    delete boats[socket.id]; // Eliminar el barco cuando el cliente se desconecta
   });
 });
 
-// Usa process.env.PORT o el puerto 3000 por defecto
-const PORT = process.env.PORT || 8080;
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Iniciar el servidor
+server.listen(3000, () => {
+  console.log('Servidor escuchando en el puerto 3000');
 });
