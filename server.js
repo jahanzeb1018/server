@@ -11,7 +11,7 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 app.use(cors({
-  origin: "http://localhost:3000",  // Permite solicitudes solo desde localhost:3000
+  origin: "http://37.15.50.246:3000",  // Permite solicitudes solo desde localhost:3000
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"]
 }));
