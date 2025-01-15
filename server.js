@@ -1,17 +1,15 @@
-// server.js (Backend)
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');  // Importar cors
 
-
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
+// Configuración de CORS para permitir solicitudes desde localhost:3000
 app.use(cors({
-  origin: "http://192.168.1.138:3000",  // Permite solicitudes solo desde localhost:3000
+  origin: "http://localhost:3000",  // Permite solicitudes solo desde http://localhost:3000
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"]
 }));
