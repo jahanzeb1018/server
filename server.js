@@ -9,7 +9,7 @@ const io = socketIo(server);
 
 // Configuración de CORS para permitir solicitudes desde localhost:3000
 app.use(cors({
-  origin: "http://localhost:3000",  // Permite solicitudes solo desde http://localhost:3000
+  origin: "https://localhost:3000",  // Permite solicitudes solo desde http://localhost:3000
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"]
 }));
