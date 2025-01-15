@@ -8,8 +8,15 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
-  }
+    methods: ['GET', 'POST'],
+  },
+});
+
+app.use(cors());
+
+// Ruta para verificar que el servidor está corriendo
+app.get('/', (req, res) => {
+  res.send('Boat Tracker Server is running');
 });
 
 // Evento cuando un cliente se conecta
@@ -24,12 +31,12 @@ io.on('connection', (socket) => {
     io.emit('updateLocation', data);
   });
 
-  // Evento cuando un cliente se desconecta
   socket.on('disconnect', () => {
     console.log('A client disconnected');
   });
 });
 
-server.listen(2000, () => {
-  console.log('Server running on http://localhost:2000');
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
