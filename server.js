@@ -20,10 +20,6 @@ io.on('connection', (socket) => {
     io.emit('updateLocation', { id: socket.id, ...data });
   });
 
-    // Emitimos la ubicación a todos los clientes
-    io.emit('updateLocation', { id: socket.id, ...data });
-  });
-
   // Cuando un cliente se desconecta
   socket.on('disconnect', () => {
     console.log('Cliente desconectado');
