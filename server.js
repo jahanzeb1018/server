@@ -31,6 +31,6 @@ io.on('connection', (socket) => {
 });
 
 // Iniciar el servidor
-server.listen(3000, () => {
-  console.log('Servidor escuchando en el puerto 3000');
+server.listen(8080, () => {
+  console.log('Servidor escuchando en el puerto 8080');
 });
