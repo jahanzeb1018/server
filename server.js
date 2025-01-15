@@ -3,10 +3,18 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const cors = require('cors');  // Importar cors
+
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
+
+app.use(cors({
+  origin: "http://localhost:3000",  // Permite solicitudes solo desde localhost:3000
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"]
+}));
 
 let boats = {}; // Mantener un objeto de barcos conectados
 
