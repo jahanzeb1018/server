@@ -16,8 +16,9 @@ io.on('connection', (socket) => {
 
   // Recibir la ubicación del barco desde la app móvil y emitirla a todos los clientes
   socket.on('sendLocation', (data) => {
-    // Guardamos la ubicación del barco en el objeto de barcos
-    boats[socket.id] = data;
+    console.log('Ubicación recibida:', data);
+    io.emit('updateLocation', { id: socket.id, ...data });
+  });
 
     // Emitimos la ubicación a todos los clientes
     io.emit('updateLocation', { id: socket.id, ...data });
