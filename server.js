@@ -13,38 +13,34 @@ app.use(cors({
   allowedHeaders: ["Content-Type"]
 }));
 
-// Lista de nombres y colores disponibles
-let availableNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
+// Lista base de nombres y colores
+const baseNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
 const availableColors = ["red", "blue", "yellow", "green", "purple"];
 
-let usedNames = {}; // Mapeo de socket.id -> nombre
+let connectedBoats = []; // Lista de barcos conectados (en orden)
 let usedColors = {}; // Mapeo de socket.id -> color
 
 io.on('connection', (socket) => {
   console.log('Nuevo cliente conectado:', socket.id);
 
-  // Asignar nombre y color en orden
-  if (availableNames.length > 0 && availableColors.length > 0) {
-    const name = availableNames.shift(); // Tomar el primer nombre disponible
-    const color = availableColors.find(c => !Object.values(usedColors).includes(c)); // Buscar un color disponible
-
-    if (name && color) {
-      usedNames[socket.id] = name;
-      usedColors[socket.id] = color;
-
-      // Enviar la información asignada al cliente
-      socket.emit('assignBoatInfo', { name, color });
-      console.log(`Asignado: ${name}, ${color}`);
-    }
-  } else {
-    socket.emit('assignBoatInfo', { error: "No hay nombres o colores disponibles" });
+  // Asignar color único
+  const color = availableColors.find(c => !Object.values(usedColors).includes(c));
+  if (!color) {
+    socket.emit('assignBoatInfo', { error: "No hay colores disponibles" });
+    return;
   }
+
+  usedColors[socket.id] = color;
+  connectedBoats.push(socket.id); // Agregar el ID al final de la lista
+
+  // Reasignar nombres en orden
+  reassignBoatNames();
 
   // Escuchar datos de ubicación del cliente
   socket.on('sendLocation', (data) => {
     const boatInfo = {
       id: socket.id,
-      name: usedNames[socket.id],
+      name: getBoatName(socket.id),
       color: usedColors[socket.id],
       ...data,
     };
@@ -56,19 +52,29 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
 
-    // Liberar el nombre y devolverlo al final de la lista
-    const releasedName = usedNames[socket.id];
-    const releasedColor = usedColors[socket.id];
-    if (releasedName) {
-      availableNames.push(releasedName); // Devolver el nombre al final de la lista
-    }
-    if (releasedColor) {
-      delete usedColors[socket.id]; // Liberar el color (no es necesario devolverlo a una lista, ya se controla dinámicamente)
-    }
+    // Eliminar el barco de las listas
+    connectedBoats = connectedBoats.filter(id => id !== socket.id);
+    delete usedColors[socket.id];
 
-    delete usedNames[socket.id]; // Eliminar la asignación del nombre
+    // Reasignar nombres en orden
+    reassignBoatNames();
   });
 });
+
+// Función para reasignar nombres a los barcos en orden
+function reassignBoatNames() {
+  connectedBoats.forEach((id, index) => {
+    const name = baseNames[index];
+    io.to(id).emit('assignBoatInfo', { name, color: usedColors[id] });
+    console.log(`Reasignado: ${id} -> ${name}`);
+  });
+}
+
+// Función para obtener el nombre de un barco por su ID
+function getBoatName(id) {
+  const index = connectedBoats.indexOf(id);
+  return baseNames[index];
+}
 
 server.listen(8080, '0.0.0.0', () => {
   console.log('Servidor escuchando en el puerto 8080');
