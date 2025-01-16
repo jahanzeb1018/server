@@ -13,25 +13,29 @@ app.use(cors({
   allowedHeaders: ["Content-Type"]
 }));
 
-// Listas de nombres y colores disponibles
-const availableNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
+// Lista de nombres y colores disponibles
+let availableNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
 const availableColors = ["red", "blue", "yellow", "green", "purple"];
+
 let usedNames = {}; // Mapeo de socket.id -> nombre
 let usedColors = {}; // Mapeo de socket.id -> color
 
 io.on('connection', (socket) => {
   console.log('Nuevo cliente conectado:', socket.id);
 
-  // Asignar un nombre y color únicos
-  const name = availableNames.find(n => !Object.values(usedNames).includes(n));
-  const color = availableColors.find(c => !Object.values(usedColors).includes(c));
+  // Asignar nombre y color en orden
+  if (availableNames.length > 0 && availableColors.length > 0) {
+    const name = availableNames.shift(); // Tomar el primer nombre disponible
+    const color = availableColors.find(c => !Object.values(usedColors).includes(c)); // Buscar un color disponible
 
-  if (name && color) {
-    usedNames[socket.id] = name;
-    usedColors[socket.id] = color;
+    if (name && color) {
+      usedNames[socket.id] = name;
+      usedColors[socket.id] = color;
 
-    // Enviar la información asignada al cliente
-    socket.emit('assignBoatInfo', { name, color });
+      // Enviar la información asignada al cliente
+      socket.emit('assignBoatInfo', { name, color });
+      console.log(`Asignado: ${name}, ${color}`);
+    }
   } else {
     socket.emit('assignBoatInfo', { error: "No hay nombres o colores disponibles" });
   }
@@ -51,8 +55,18 @@ io.on('connection', (socket) => {
   // Manejar desconexiones
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
-    delete usedNames[socket.id]; // Liberar el nombre
-    delete usedColors[socket.id]; // Liberar el color
+
+    // Liberar el nombre y devolverlo al final de la lista
+    const releasedName = usedNames[socket.id];
+    const releasedColor = usedColors[socket.id];
+    if (releasedName) {
+      availableNames.push(releasedName); // Devolver el nombre al final de la lista
+    }
+    if (releasedColor) {
+      delete usedColors[socket.id]; // Liberar el color (no es necesario devolverlo a una lista, ya se controla dinámicamente)
+    }
+
+    delete usedNames[socket.id]; // Eliminar la asignación del nombre
   });
 });
 
