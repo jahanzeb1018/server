@@ -1,40 +1,61 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors');  // Importar cors
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Configuración de CORS para permitir solicitudes desde localhost:3000
 app.use(cors({
-  origin: "http://192.168.1.138:3000",  // Permite solicitudes solo desde http://localhost:3000
+  origin: "http://192.168.1.138:3000", 
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"]
 }));
 
-let boats = {}; // Mantener un objeto de barcos conectados
+// Listas de nombres y colores disponibles
+const availableNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
+const availableColors = ["red", "blue", "yellow", "green", "purple"];
+let usedNames = {};
+let usedColors = {};
 
-// Cuando un cliente se conecta
 io.on('connection', (socket) => {
   console.log('Nuevo cliente conectado');
 
-  // Recibir la ubicación del barco desde la app móvil y emitirla a todos los clientes
+  // Asignar nombre y color únicos al cliente
+  const name = availableNames.find(n => !Object.values(usedNames).includes(n));
+  const color = availableColors.find(c => !Object.values(usedColors).includes(c));
+
+  if (name && color) {
+    usedNames[socket.id] = name;
+    usedColors[socket.id] = color;
+
+    // Emitir el nombre y color asignados al cliente
+    socket.emit('assignBoatInfo', { name, color });
+  } else {
+    socket.emit('assignBoatInfo', { error: "No hay nombres o colores disponibles" });
+  }
+
+  // Recibir la ubicación del barco
   socket.on('sendLocation', (data) => {
-    console.log('Ubicación recibida:', data);
-    io.emit('updateLocation', { id: socket.id, ...data });
+    const boatInfo = {
+      id: socket.id,
+      name: usedNames[socket.id],
+      color: usedColors[socket.id],
+      ...data,
+    };
+    console.log('Ubicación recibida:', boatInfo);
+    io.emit('updateLocation', boatInfo);
   });
 
-  // Cuando un cliente se desconecta
+  // Manejar desconexiones
   socket.on('disconnect', () => {
     console.log('Cliente desconectado');
-    delete boats[socket.id]; // Eliminar el barco cuando el cliente se desconecta
+    delete usedNames[socket.id];
+    delete usedColors[socket.id];
   });
 });
 
-// Iniciar el servidor
 server.listen(8080, '0.0.0.0', () => {
   console.log('Servidor escuchando en el puerto 8080');
 });
-
