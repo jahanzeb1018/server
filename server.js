@@ -17,7 +17,7 @@ app.use(cors({
 const baseNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
 const availableColors = ["red", "blue", "yellow", "green", "purple"];
 
-let connectedBoats = []; // Lista de barcos conectados (en orden)
+let connectedBoats = []; // Lista de barcos conectados en orden
 let usedColors = {}; // Mapeo de socket.id -> color
 
 io.on('connection', (socket) => {
@@ -65,8 +65,10 @@ io.on('connection', (socket) => {
 function reassignBoatNames() {
   connectedBoats.forEach((id, index) => {
     const name = baseNames[index];
-    io.to(id).emit('assignBoatInfo', { name, color: usedColors[id] });
-    console.log(`Reasignado: ${id} -> ${name}`);
+    if (name) {
+      io.to(id).emit('assignBoatInfo', { name, color: usedColors[id] });
+      console.log(`Reasignado: ${id} -> ${name}`);
+    }
   });
 }
 
