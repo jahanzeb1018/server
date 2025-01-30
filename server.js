@@ -41,6 +41,8 @@ const createTables = async () => {
         longitude DOUBLE PRECISION NOT NULL,
         azimuth DOUBLE PRECISION NOT NULL,
         speed DOUBLE PRECISION NOT NULL,
+        pitch DOUBLE PRECISION,  -- Nueva columna para pitch
+        roll DOUBLE PRECISION,   -- Nueva columna para roll
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
@@ -136,8 +138,8 @@ const saveLocationToDb = async (boatInfo) => {
 
     // Guardar la ubicación en la tabla de ubicaciones
     await pool.query(
-      'INSERT INTO locations (boat_id, latitude, longitude, azimuth, speed) VALUES ($1, $2, $3, $4, $5)',
-      [boatId, boatInfo.latitude, boatInfo.longitude, boatInfo.azimuth, boatInfo.speed]
+      'INSERT INTO locations (boat_id, latitude, longitude, azimuth, speed, pitch, roll) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [boatId, boatInfo.latitude, boatInfo.longitude, boatInfo.azimuth, boatInfo.speed, boatInfo.pitch, boatInfo.roll]
     );
     console.log(`Ubicación del barco ${boatInfo.name} guardada`);
   } catch (error) {
