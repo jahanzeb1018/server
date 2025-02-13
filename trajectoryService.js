@@ -54,7 +54,7 @@ const startBoatSimulation = () => {
       socket.emit("sendLocation", boatInfo);
 
       index++;
-      setTimeout(sendNextPosition, 50);
+      setTimeout(sendNextPosition, 2000);
     };
 
     sendNextPosition();
