@@ -8,24 +8,20 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*", // Permitir conexiones desde cualquier origen
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
 // 📌 Conexión a PostgreSQL (Railway)
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // 📌 Usa Railway para la DB
-  ssl: {
-    rejectUnauthorized: false, // 📌 Necesario para conexiones seguras
-  }
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-// 📌 Lista de barcos y colores asignados
-const baseNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
-const availableColors = ["red", "blue", "yellow", "green", "purple"];
-let connectedBoats = []; // 📌 Lista de barcos conectados
-let usedColors = {}; // 📌 Mapeo de socket.id -> color
+// 📌 Lista de colores disponibles para los barcos
+const availableColors = ["red", "blue", "yellow", "green", "purple", "orange", "pink", "cyan", "brown", "lime"];
+let usedColors = {}; // 📌 Mapeo de barco -> color
 
 // 📌 Crear tablas en PostgreSQL si no existen
 const createTables = async () => {
@@ -34,7 +30,7 @@ const createTables = async () => {
       CREATE TABLE IF NOT EXISTS boats (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) UNIQUE NOT NULL,
-        color VARCHAR(50)
+        color VARCHAR(50) NOT NULL
       );
     `);
 
@@ -46,8 +42,6 @@ const createTables = async () => {
         longitude DOUBLE PRECISION NOT NULL,
         azimuth DOUBLE PRECISION NOT NULL,
         speed DOUBLE PRECISION NOT NULL,
-        pitch DOUBLE PRECISION,
-        roll DOUBLE PRECISION,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -65,88 +59,46 @@ createTables();
 io.on("connection", (socket) => {
   console.log("🔵 Nuevo cliente conectado:", socket.id);
 
-  // 📌 Asignar color único al barco
-  const color = availableColors.find(c => !Object.values(usedColors).includes(c));
-  if (!color) {
-    socket.emit("assignBoatInfo", { error: "No hay colores disponibles" });
-    return;
-  }
+  socket.on("sendLocation", async (data) => {
+    try {
+      let boatColor = usedColors[data.id];
 
-  usedColors[socket.id] = color;
-  connectedBoats.push(socket.id);
+      // 📌 Si el barco no tiene color, asignarle uno único
+      if (!boatColor) {
+        const existingBoat = await pool.query("SELECT color FROM boats WHERE name = $1", [data.name]);
+        
+        if (existingBoat.rows.length > 0) {
+          boatColor = existingBoat.rows[0].color; // Usar el color de la BD
+        } else {
+          // 📌 Asignar un color no usado
+          boatColor = availableColors.find(c => !Object.values(usedColors).includes(c)) || "gray";
+          await pool.query("INSERT INTO boats (name, color) VALUES ($1, $2)", [data.name, boatColor]);
+        }
+        usedColors[data.id] = boatColor;
+      }
 
-  // 📌 Asignar nombres en orden
-  reassignBoatNames();
+      const boatInfo = {
+        id: data.id,
+        name: data.name,
+        color: boatColor,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        azimuth: data.azimuth,
+        speed: data.speed
+      };
 
-  // 📌 Escuchar posiciones de los barcos en tiempo real
-  socket.on("sendLocation", (data) => {
-    const boatInfo = {
-      id: socket.id,
-      name: getBoatName(socket.id),
-      color: usedColors[socket.id],
-      ...data,
-    };
-
-    console.log("📡 Ubicación recibida:", boatInfo);
-    saveLocationToDb(boatInfo); // 📌 Guardar en la base de datos
-
-    io.emit("updateLocation", boatInfo); // 📌 Reenviar a todos los clientes
+      console.log("📡 Ubicación recibida:", boatInfo);
+      io.emit("updateLocation", boatInfo);
+    } catch (error) {
+      console.error("❌ Error procesando ubicación:", error);
+    }
   });
 
-  // 📌 Manejar desconexiones
   socket.on("disconnect", () => {
     console.log("🔴 Cliente desconectado:", socket.id);
-
-    // 📌 Eliminar barco desconectado
-    connectedBoats = connectedBoats.filter(id => id !== socket.id);
-    delete usedColors[socket.id];
-
-    reassignBoatNames();
+    delete usedColors[socket.id]; // Liberar el color usado
   });
 });
-
-// 📌 Reasignar nombres de barcos en orden
-function reassignBoatNames() {
-  connectedBoats.forEach((id, index) => {
-    const name = baseNames[index];
-    if (name) {
-      io.to(id).emit("assignBoatInfo", { name, color: usedColors[id] });
-      console.log(`📌 Asignado: ${id} -> ${name}`);
-    }
-  });
-}
-
-// 📌 Obtener nombre de un barco por su ID
-function getBoatName(id) {
-  const index = connectedBoats.indexOf(id);
-  return baseNames[index];
-}
-
-// 📌 Guardar ubicación en PostgreSQL
-const saveLocationToDb = async (boatInfo) => {
-  try {
-    const result = await pool.query("SELECT id FROM boats WHERE name = $1", [boatInfo.name]);
-    
-    let boatId;
-    if (result.rows.length === 0) {
-      const insertBoat = await pool.query("INSERT INTO boats (name, color) VALUES ($1, $2) RETURNING id", [boatInfo.name, boatInfo.color]);
-      boatId = insertBoat.rows[0].id;
-      console.log(`🚢 Barco registrado: ${boatInfo.name}`);
-    } else {
-      boatId = result.rows[0].id;
-    }
-
-    // 📌 Guardar ubicación en la tabla de ubicaciones
-    await pool.query(
-      "INSERT INTO locations (boat_id, latitude, longitude, azimuth, speed, pitch, roll) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-      [boatId, boatInfo.latitude, boatInfo.longitude, boatInfo.azimuth, boatInfo.speed, boatInfo.pitch, boatInfo.roll]
-    );
-
-    console.log(`📍 Ubicación del barco ${boatInfo.name} guardada.`);
-  } catch (error) {
-    console.error("❌ Error guardando ubicación:", error);
-  }
-};
 
 // 📌 Iniciar el servidor en Railway
 const PORT = process.env.PORT || 8080;

@@ -8,6 +8,10 @@ const socket = io("https://server-production-c33c.up.railway.app/");
 // 📌 Ruta del archivo JSON con las posiciones
 const jsonFilePath = path.join(__dirname, "data", "boat_positions.json");
 
+// 📌 Colores asignados a los barcos (para evitar repetidos)
+const boatColors = {};
+const availableColors = ["red", "blue", "yellow", "green", "purple", "orange", "pink", "cyan", "brown", "lime"];
+
 // 📌 Leer y parsear el JSON
 const loadJsonData = () => {
   try {
@@ -27,27 +31,33 @@ const startBoatSimulation = () => {
   Object.entries(data.positions).forEach(([boatName, positions]) => {
     let index = 0;
 
+    // 📌 Asignar un color único al barco
+    if (!boatColors[boatName]) {
+      boatColors[boatName] = availableColors.shift() || "gray";
+    }
+
     const sendNextPosition = () => {
-      if (index >= positions.length) return; // Si terminamos el recorrido, salimos
+      if (index >= positions.length) return;
 
       const position = positions[index];
       const boatInfo = {
         id: boatName,
         name: boatName,
-        latitude: position.a, // Latitud
-        longitude: position.n, // Longitud
-        speed: position.s, // Velocidad
-        azimuth: position.c, // Dirección
+        color: boatColors[boatName], // 📌 Asignar el color correcto
+        latitude: position.a,
+        longitude: position.n,
+        speed: position.s,
+        azimuth: position.c
       };
 
       console.log(`Enviando datos de ${boatName}:`, boatInfo);
-      socket.emit("sendLocation", boatInfo); // 📌 Enviar datos al servidor
+      socket.emit("sendLocation", boatInfo);
 
       index++;
-      setTimeout(sendNextPosition, 20); // 📌 Enviar cada 2 segundos
+      setTimeout(sendNextPosition, 50);
     };
 
-    sendNextPosition(); // Iniciar el recorrido del barco
+    sendNextPosition();
   });
 };
 
