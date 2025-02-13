@@ -2,13 +2,14 @@ const fs = require("fs");
 const path = require("path");
 const io = require("socket.io-client");
 
-// 📌 Conectar con el servidor WebSocket
 const socket = io("https://server-production-c33c.up.railway.app/");
 
-// 📌 Ruta del archivo JSON con las posiciones
 const jsonFilePath = path.join(__dirname, "data", "boat_positions.json");
 
-// 📌 Leer y parsear el JSON
+// 📌 Lista de colores disponibles
+const availableColors = ["red", "blue", "yellow", "green", "purple", "orange", "cyan", "pink"];
+let boatColors = {}; // Mapeo de barcos: id -> color
+
 const loadJsonData = () => {
   try {
     const rawData = fs.readFileSync(jsonFilePath);
@@ -19,37 +20,38 @@ const loadJsonData = () => {
   }
 };
 
-// 📌 Función para iniciar la simulación de los barcos
 const startBoatSimulation = () => {
   const data = loadJsonData();
   if (!data || !data.positions) return console.error("No hay datos disponibles.");
 
-  Object.entries(data.positions).forEach(([boatName, positions]) => {
-    let index = 0;
+  Object.entries(data.positions).forEach(([boatName, positions], index) => {
+    let color = availableColors[index % availableColors.length]; // Asignar color único
+    boatColors[boatName] = color;
 
+    let indexPos = 0;
     const sendNextPosition = () => {
-      if (index >= positions.length) return; // Si terminamos el recorrido, salimos
+      if (indexPos >= positions.length) return;
 
-      const position = positions[index];
+      const position = positions[indexPos];
       const boatInfo = {
         id: boatName,
         name: boatName,
-        latitude: position.a, // Latitud
-        longitude: position.n, // Longitud
-        speed: position.s, // Velocidad
-        azimuth: position.c, // Dirección
+        color: boatColors[boatName],
+        latitude: position.a,
+        longitude: position.n,
+        speed: position.s,
+        azimuth: position.c
       };
 
       console.log(`Enviando datos de ${boatName}:`, boatInfo);
-      socket.emit("sendLocation", boatInfo); // 📌 Enviar datos al servidor
+      socket.emit("sendLocation", boatInfo);
 
-      index++;
-      setTimeout(sendNextPosition, 20); // 📌 Enviar cada 2 segundos
+      indexPos++;
+      setTimeout(sendNextPosition, 2000);
     };
 
-    sendNextPosition(); // Iniciar el recorrido del barco
+    sendNextPosition();
   });
 };
 
-// 📌 Ejecutar la simulación al iniciar el servicio
 startBoatSimulation();
