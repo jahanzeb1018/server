@@ -2,7 +2,7 @@ const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
-const { Pool } = require("pg"); // 📌 Conexión a PostgreSQL
+const { Pool } = require("pg"); // Conexión a PostgreSQL
 
 const app = express();
 const server = http.createServer(app);
@@ -13,21 +13,21 @@ const io = socketIo(server, {
   }
 });
 
-// 📌 Conexión a PostgreSQL (Railway)
+// Conexión a PostgreSQL (Railway)
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // 📌 Usa Railway para la DB
+  connectionString: process.env.DATABASE_URL, // Usa Railway para la DB
   ssl: {
-    rejectUnauthorized: false, // 📌 Necesario para conexiones seguras
+    rejectUnauthorized: false, // Necesario para conexiones seguras
   }
 });
 
-// 📌 Lista de barcos y colores asignados
+// Lista de barcos y colores asignados
 const baseNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
 const availableColors = ["red", "blue", "yellow", "green", "purple"];
-let connectedBoats = []; // 📌 Lista de barcos conectados
-let usedColors = {}; // 📌 Mapeo de socket.id -> color
+let connectedBoats = []; // Lista de barcos conectados
+let usedColors = {}; // Mapeo de socket.id -> color
 
-// 📌 Crear tablas en PostgreSQL si no existen
+// Crear tablas en PostgreSQL si no existen
 const createTables = async () => {
   try {
     await pool.query(`
@@ -58,14 +58,14 @@ const createTables = async () => {
   }
 };
 
-// 📌 Llamar a la función al iniciar el servidor
+// Llamar a la función al iniciar el servidor
 createTables();
 
-// 📌 Manejo de conexiones de WebSocket
+// Manejo de conexiones de WebSocket
 io.on("connection", (socket) => {
   console.log("🔵 Nuevo cliente conectado:", socket.id);
 
-  // 📌 Asignar color único al barco
+  // Asignar color único al barco
   const color = availableColors.find(c => !Object.values(usedColors).includes(c));
   if (!color) {
     socket.emit("assignBoatInfo", { error: "No hay colores disponibles" });
@@ -75,10 +75,10 @@ io.on("connection", (socket) => {
   usedColors[socket.id] = color;
   connectedBoats.push(socket.id);
 
-  // 📌 Asignar nombres en orden
+  // Asignar nombres en orden
   reassignBoatNames();
 
-  // 📌 Escuchar posiciones de los barcos en tiempo real
+  // Escuchar posiciones de los barcos en tiempo real
   socket.on("sendLocation", (data) => {
     const boatInfo = {
       id: socket.id,
@@ -88,16 +88,16 @@ io.on("connection", (socket) => {
     };
 
     console.log("📡 Ubicación recibida:", boatInfo);
-    saveLocationToDb(boatInfo); // 📌 Guardar en la base de datos
+    saveLocationToDb(boatInfo); // Guardar en la base de datos
 
-    io.emit("updateLocation", boatInfo); // 📌 Reenviar a todos los clientes
+    io.emit("updateLocation", boatInfo); // Reenviar a todos los clientes
   });
 
-  // 📌 Manejar desconexiones
+  // Manejar desconexiones
   socket.on("disconnect", () => {
     console.log("🔴 Cliente desconectado:", socket.id);
 
-    // 📌 Eliminar barco desconectado
+    // Eliminar barco desconectado
     connectedBoats = connectedBoats.filter(id => id !== socket.id);
     delete usedColors[socket.id];
 
@@ -105,7 +105,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// 📌 Reasignar nombres de barcos en orden
+// Reasignar nombres de barcos en orden
 function reassignBoatNames() {
   connectedBoats.forEach((id, index) => {
     const name = baseNames[index];
@@ -116,27 +116,30 @@ function reassignBoatNames() {
   });
 }
 
-// 📌 Obtener nombre de un barco por su ID
+// Obtener nombre de un barco por su ID
 function getBoatName(id) {
   const index = connectedBoats.indexOf(id);
   return baseNames[index];
 }
 
-// 📌 Guardar ubicación en PostgreSQL
+// Guardar ubicación en PostgreSQL
 const saveLocationToDb = async (boatInfo) => {
   try {
     const result = await pool.query("SELECT id FROM boats WHERE name = $1", [boatInfo.name]);
     
     let boatId;
     if (result.rows.length === 0) {
-      const insertBoat = await pool.query("INSERT INTO boats (name, color) VALUES ($1, $2) RETURNING id", [boatInfo.name, boatInfo.color]);
+      const insertBoat = await pool.query(
+        "INSERT INTO boats (name, color) VALUES ($1, $2) RETURNING id",
+        [boatInfo.name, boatInfo.color]
+      );
       boatId = insertBoat.rows[0].id;
       console.log(`🚢 Barco registrado: ${boatInfo.name}`);
     } else {
       boatId = result.rows[0].id;
     }
 
-    // 📌 Guardar ubicación en la tabla de ubicaciones
+    // Guardar ubicación en la tabla de ubicaciones
     await pool.query(
       "INSERT INTO locations (boat_id, latitude, longitude, azimuth, speed, pitch, roll) VALUES ($1, $2, $3, $4, $5, $6, $7)",
       [boatId, boatInfo.latitude, boatInfo.longitude, boatInfo.azimuth, boatInfo.speed, boatInfo.pitch, boatInfo.roll]
@@ -148,7 +151,7 @@ const saveLocationToDb = async (boatInfo) => {
   }
 };
 
-// 📌 Iniciar el servidor en Railway
+// Iniciar el servidor en Railway
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Servidor en ejecución en el puerto ${PORT}`);
