@@ -13,7 +13,7 @@ const io = socketIo(server, {
   }
 });
 
-// Conexión a PostgreSQL (Railway)
+//  Conexión a PostgreSQL (Railway)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL, // Usa Railway para la DB
   ssl: {
@@ -116,30 +116,27 @@ function reassignBoatNames() {
   });
 }
 
-// Obtener nombre de un barco por su ID
+//  Obtener nombre de un barco por su ID
 function getBoatName(id) {
   const index = connectedBoats.indexOf(id);
   return baseNames[index];
 }
 
-// Guardar ubicación en PostgreSQL
+//  Guardar ubicación en PostgreSQL
 const saveLocationToDb = async (boatInfo) => {
   try {
     const result = await pool.query("SELECT id FROM boats WHERE name = $1", [boatInfo.name]);
     
     let boatId;
     if (result.rows.length === 0) {
-      const insertBoat = await pool.query(
-        "INSERT INTO boats (name, color) VALUES ($1, $2) RETURNING id",
-        [boatInfo.name, boatInfo.color]
-      );
+      const insertBoat = await pool.query("INSERT INTO boats (name, color) VALUES ($1, $2) RETURNING id", [boatInfo.name, boatInfo.color]);
       boatId = insertBoat.rows[0].id;
       console.log(`🚢 Barco registrado: ${boatInfo.name}`);
     } else {
       boatId = result.rows[0].id;
     }
 
-    // Guardar ubicación en la tabla de ubicaciones
+    //  Guardar ubicación en la tabla de ubicaciones
     await pool.query(
       "INSERT INTO locations (boat_id, latitude, longitude, azimuth, speed, pitch, roll) VALUES ($1, $2, $3, $4, $5, $6, $7)",
       [boatId, boatInfo.latitude, boatInfo.longitude, boatInfo.azimuth, boatInfo.speed, boatInfo.pitch, boatInfo.roll]
@@ -151,7 +148,7 @@ const saveLocationToDb = async (boatInfo) => {
   }
 };
 
-// Iniciar el servidor en Railway
+//  Iniciar el servidor en Railway
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Servidor en ejecución en el puerto ${PORT}`);
