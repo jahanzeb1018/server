@@ -6,12 +6,16 @@ const io = require("socket.io-client");
 const socket = io("https://server-production-c33c.up.railway.app", {
   query: { role: "boat" }
 });
+
 // Ruta del archivo JSON con las posiciones
 const jsonFilePath = path.join(__dirname, "data", "boat_positions.json");
 
 // Colores asignados a los barcos (para evitar repetidos)
 const boatColors = {};
-const availableColors = ["red", "blue", "yellow", "green", "purple", "orange", "pink", "cyan", "brown", "lime"];
+const availableColors = [
+  "red", "blue", "yellow", "green", "purple", 
+  "orange", "pink", "cyan", "brown", "lime"
+];
 
 // Leer y parsear el JSON
 const loadJsonData = () => {
@@ -32,19 +36,26 @@ const startBoatSimulation = () => {
   Object.entries(data.positions).forEach(([boatName, positions]) => {
     let index = 0;
 
-    // Asignar un color único al barco
+    // Asignar un color único al barco si no tiene
     if (!boatColors[boatName]) {
       boatColors[boatName] = availableColors.shift() || "gray";
     }
 
     const sendNextPosition = () => {
-      if (index >= positions.length) return;
+      if (index >= positions.length) {
+        // -------------------------------
+        //  NUEVO: Emitir evento "boatFinished"
+        //  cuando el barco ya no envía más posiciones
+        // -------------------------------
+        socket.emit("boatFinished", { name: boatName });
+        return;
+      }
 
       const position = positions[index];
       const boatInfo = {
         id: boatName,
         name: boatName,
-        color: boatColors[boatName], // Asignar el color correcto
+        color: boatColors[boatName],
         latitude: position.a,
         longitude: position.n,
         speed: position.s,
