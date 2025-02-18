@@ -67,7 +67,7 @@ const startBoatSimulation = () => {
       const nextPosition = positions[index];
       if (nextPosition) {
         const delay = nextPosition.t - position.t;
-        setTimeout(sendNextPosition, delay);
+        setTimeout(sendNextPosition, 30);
       }
     };
 
