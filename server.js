@@ -3,6 +3,8 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 const { Pool } = require("pg"); // Conexión a PostgreSQL
+const fs = require("fs"); // Para leer el archivo JSON de boyas
+const path = require("path"); // Para manejar rutas de archivos
 
 const app = express();
 app.use(cors());
@@ -50,6 +52,16 @@ const createTables = async () => {
       );
     `);
 
+    // Tabla de boyas
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS buoys (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) UNIQUE NOT NULL,
+        latitude DOUBLE PRECISION NOT NULL,
+        longitude DOUBLE PRECISION NOT NULL
+      );
+    `);
+
     console.log("✅ Tablas creadas/verificadas correctamente.");
   } catch (error) {
     console.error("❌ Error al crear tablas:", error);
@@ -57,6 +69,42 @@ const createTables = async () => {
 };
 
 createTables();
+
+// Cargar boyas desde el archivo JSON
+const loadBuoysFromJson = () => {
+  try {
+    const filePath = path.join(__dirname, "data", "boat_positions.json");
+    const rawData = fs.readFileSync(filePath);
+    const data = JSON.parse(rawData);
+    return data.buoys.map((buoy) => ({
+      name: buoy.name,
+      latitude: buoy.lat,
+      longitude: buoy.lng,
+    }));
+  } catch (error) {
+    console.error("❌ Error cargando boyas desde JSON:", error);
+    return [];
+  }
+};
+
+// Guardar boyas en la base de datos
+const saveBuoysToDb = async (buoys) => {
+  try {
+    for (const buoy of buoys) {
+      await pool.query(
+        "INSERT INTO buoys (name, latitude, longitude) VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING",
+        [buoy.name, buoy.latitude, buoy.longitude]
+      );
+    }
+    console.log("✅ Boyas guardadas en la base de datos.");
+  } catch (error) {
+    console.error("❌ Error guardando boyas:", error);
+  }
+};
+
+// Cargar y guardar boyas al iniciar el servidor
+const buoys = loadBuoysFromJson();
+saveBuoysToDb(buoys);
 
 // Lista base de nombres y colores asignables
 const baseNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
@@ -106,10 +154,7 @@ io.on("connection", (socket) => {
       io.emit("updateLocation", boatInfo);
     });
 
-    // ---------------------------
-    // NUEVO: Reenviar "boatFinished"
-    // cuando el barco avise de que terminó su ruta
-    // ---------------------------
+    // Reenviar "boatFinished" cuando el barco avise de que terminó su ruta
     socket.on("boatFinished", (data) => {
       console.log(`🚩 Barco finalizó ruta: ${data.name}`);
       io.emit("boatFinished", data);
@@ -129,6 +174,9 @@ io.on("connection", (socket) => {
   } else {
     // Conexión como "viewer"
     console.log("🟢 Conexión identificada como VIEWER:", socket.id);
+
+    // Enviar las boyas al viewer cuando se conecte
+    socket.emit("updateBuoys", buoys);
 
     socket.on("disconnect", () => {
       console.log("🟡 VIEWER desconectado:", socket.id);
