@@ -43,10 +43,7 @@ const startBoatSimulation = () => {
 
     const sendNextPosition = () => {
       if (index >= positions.length) {
-        // -------------------------------
-        //  NUEVO: Emitir evento "boatFinished"
-        //  cuando el barco ya no envía más posiciones
-        // -------------------------------
+        // Emitir evento "boatFinished" cuando el barco ya no envía más posiciones
         socket.emit("boatFinished", { name: boatName });
         return;
       }
@@ -59,17 +56,24 @@ const startBoatSimulation = () => {
         latitude: position.a,
         longitude: position.n,
         speed: position.s,
-        azimuth: position.c
+        azimuth: position.c,
+        timestamp: position.t // Incluimos el timestamp
       };
 
       console.log(`Enviando datos de ${boatName}:`, boatInfo);
       socket.emit("sendLocation", boatInfo);
 
       index++;
-      setTimeout(sendNextPosition, 30);
+      const nextPosition = positions[index];
+      if (nextPosition) {
+        const delay = nextPosition.t - position.t;
+        setTimeout(sendNextPosition, delay);
+      }
     };
 
-    sendNextPosition();
+    // Iniciar la simulación después de un retraso inicial
+    const initialDelay = positions[0].t - Date.now();
+    setTimeout(sendNextPosition, initialDelay > 0 ? initialDelay : 0);
   });
 };
 
