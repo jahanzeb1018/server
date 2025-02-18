@@ -114,6 +114,15 @@ io.on("connection", (socket) => {
       connectedBoats = connectedBoats.filter(id => id !== socket.id);
       delete usedColors[socket.id];
 
+      // Obtener el nombre de este barco
+      const removedBoatName = getBoatName(socket.id);
+      if (removedBoatName) {
+        // Emitir evento para que todos los clientes VIEWER eliminen el barco
+        io.emit("removeBoat", { name: removedBoatName });
+        console.log(`❌ Emitiendo removeBoat para: ${removedBoatName}`);
+      }
+
+      // Reasigna nombres al resto
       reassignBoatNames();
     });
 
@@ -141,6 +150,7 @@ function reassignBoatNames() {
 // Obtener el nombre de un barco por su ID de socket
 function getBoatName(id) {
   const index = connectedBoats.indexOf(id);
+  if (index < 0) return null;
   return baseNames[index];
 }
 
