@@ -17,7 +17,7 @@ const io = socketIo(server, {
 
 // Conexión a PostgreSQL (Railway)
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // Usa Railway para la DB
+  connectionString: process.env.DATABASE_URL, 
   ssl: {
     rejectUnauthorized: false, // Necesario para conexiones seguras
   }
@@ -106,6 +106,15 @@ io.on("connection", (socket) => {
       io.emit("updateLocation", boatInfo);
     });
 
+    // ---------------------------
+    // NUEVO: Reenviar "boatFinished"
+    // cuando el barco avise de que terminó su ruta
+    // ---------------------------
+    socket.on("boatFinished", (data) => {
+      console.log(`🚩 Barco finalizó ruta: ${data.name}`);
+      io.emit("boatFinished", data);
+    });
+
     // Manejar desconexión
     socket.on("disconnect", () => {
       console.log("🔴 BARCO desconectado:", socket.id);
@@ -118,7 +127,7 @@ io.on("connection", (socket) => {
     });
 
   } else {
-    // Conexión como "viewer" u otro valor => NO cuenta como barco
+    // Conexión como "viewer"
     console.log("🟢 Conexión identificada como VIEWER:", socket.id);
 
     socket.on("disconnect", () => {
@@ -127,7 +136,7 @@ io.on("connection", (socket) => {
   }
 });
 
-// Reasignar nombres de barcos en orden (según el array `connectedBoats`)
+// Reasignar nombres de barcos en orden (según el array connectedBoats)
 function reassignBoatNames() {
   connectedBoats.forEach((id, index) => {
     const name = baseNames[index];
