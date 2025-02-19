@@ -3,8 +3,6 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 const { Pool } = require("pg"); // Conexión a PostgreSQL
-const fs = require("fs");
-const path = require("path");
 
 const app = express();
 app.use(cors());
@@ -13,16 +11,16 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: "*", // Permitir conexiones desde cualquier origen
-    methods: ["GET", "POST"],
-  },
+    methods: ["GET", "POST"]
+  }
 });
 
 // Conexión a PostgreSQL (Railway)
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL, 
   ssl: {
     rejectUnauthorized: false, // Necesario para conexiones seguras
-  },
+  }
 });
 
 // Crear tablas en PostgreSQL si no existen
@@ -66,7 +64,7 @@ const availableColors = ["red", "blue", "yellow", "green", "purple"];
 
 // Estados en memoria (por Socket ID)
 let connectedBoats = []; // Array de IDs de sockets que son "barcos"
-let usedColors = {}; // Mapeo: socket.id -> color
+let usedColors = {};     // Mapeo: socket.id -> color
 
 // Manejo de conexiones de WebSocket
 io.on("connection", (socket) => {
@@ -79,7 +77,7 @@ io.on("connection", (socket) => {
     console.log("🔵 Conexión identificada como BARCO:", socket.id);
 
     // Asignar color único al barco
-    const color = availableColors.find((c) => !Object.values(usedColors).includes(c));
+    const color = availableColors.find(c => !Object.values(usedColors).includes(c));
     if (!color) {
       socket.emit("assignBoatInfo", { error: "No hay colores disponibles" });
       return;
@@ -108,7 +106,10 @@ io.on("connection", (socket) => {
       io.emit("updateLocation", boatInfo);
     });
 
-    // Cuando un barco avisa que terminó
+    // ---------------------------
+    // NUEVO: Reenviar "boatFinished"
+    // cuando el barco avise de que terminó su ruta
+    // ---------------------------
     socket.on("boatFinished", (data) => {
       console.log(`🚩 Barco finalizó ruta: ${data.name}`);
       io.emit("boatFinished", data);
@@ -119,11 +120,12 @@ io.on("connection", (socket) => {
       console.log("🔴 BARCO desconectado:", socket.id);
 
       // Eliminar de la lista de barcos
-      connectedBoats = connectedBoats.filter((id) => id !== socket.id);
+      connectedBoats = connectedBoats.filter(id => id !== socket.id);
       delete usedColors[socket.id];
 
       reassignBoatNames();
     });
+
   } else {
     // Conexión como "viewer"
     console.log("🟢 Conexión identificada como VIEWER:", socket.id);
@@ -156,7 +158,7 @@ const saveLocationToDb = async (boatInfo) => {
   try {
     // Verificar si el barco ya está en la tabla boats (por su "name")
     const result = await pool.query("SELECT id FROM boats WHERE name = $1", [boatInfo.name]);
-
+    
     let boatId;
     if (result.rows.length === 0) {
       // Insertamos en la tabla de barcos
@@ -173,30 +175,22 @@ const saveLocationToDb = async (boatInfo) => {
     // Guardar ubicación en la tabla locations
     await pool.query(
       "INSERT INTO locations (boat_id, latitude, longitude, azimuth, speed, pitch, roll) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-      [boatId, boatInfo.latitude, boatInfo.longitude, boatInfo.azimuth, boatInfo.speed, boatInfo.pitch, boatInfo.roll]
+      [
+        boatId,
+        boatInfo.latitude,
+        boatInfo.longitude,
+        boatInfo.azimuth,
+        boatInfo.speed,
+        boatInfo.pitch,
+        boatInfo.roll
+      ]
     );
 
     console.log(`📍 Ubicación del barco ${boatInfo.name} guardada.`);
   } catch (error) {
     console.error("❌ Error guardando ubicación:", error);
   }
-}
-
-// ENDPOINT PARA DEVOLVER LAS BOYAS
-app.get("/api/buoys", (req, res) => {
-  try {
-    // Leemos el .json localmente (puedes adaptarlo a DB si lo deseas)
-    const rawData = fs.readFileSync(path.join(__dirname, "boat_positions.json"), "utf8");
-    const jsonData = JSON.parse(rawData);
-
-    // "buoys" es el array en el JSON
-    const buoys = jsonData.buoys || [];
-    return res.json(buoys);
-  } catch (error) {
-    console.error("Error leyendo las boyas:", error);
-    return res.status(500).json({ error: "Error leyendo boyas" });
-  }
-});
+};
 
 // Iniciar el servidor en Railway
 const PORT = process.env.PORT || 8080;
