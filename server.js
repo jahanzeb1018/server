@@ -17,7 +17,7 @@ const io = socketIo(server, {
 
 // Conexión a PostgreSQL (Railway)
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, 
+  connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false, // Necesario para conexiones seguras
   }
@@ -106,9 +106,14 @@ io.on("connection", (socket) => {
       io.emit("updateLocation", boatInfo);
     });
 
+    // Cuando recibimos las boyas desde trajectoryService
+    socket.on("updateBuoys", (buoys) => {
+      console.log("📡 Datos de boyas recibidos. Reenviando a todos los clientes...");
+      io.emit("updateBuoys", buoys);
+    });
+
     // ---------------------------
-    // NUEVO: Reenviar "boatFinished"
-    // cuando el barco avise de que terminó su ruta
+    // "boatFinished" cuando el barco termina su ruta
     // ---------------------------
     socket.on("boatFinished", (data) => {
       console.log(`🚩 Barco finalizó ruta: ${data.name}`);
@@ -158,7 +163,7 @@ const saveLocationToDb = async (boatInfo) => {
   try {
     // Verificar si el barco ya está en la tabla boats (por su "name")
     const result = await pool.query("SELECT id FROM boats WHERE name = $1", [boatInfo.name]);
-    
+
     let boatId;
     if (result.rows.length === 0) {
       // Insertamos en la tabla de barcos

@@ -13,7 +13,7 @@ const jsonFilePath = path.join(__dirname, "data", "boat_positions.json");
 // Colores asignados a los barcos (para evitar repetidos)
 const boatColors = {};
 const availableColors = [
-  "red", "blue", "yellow", "green", "purple", 
+  "red", "blue", "yellow", "green", "purple",
   "orange", "pink", "cyan", "brown", "lime"
 ];
 
@@ -31,8 +31,17 @@ const loadJsonData = () => {
 // Función para iniciar la simulación de los barcos
 const startBoatSimulation = () => {
   const data = loadJsonData();
-  if (!data || !data.positions) return console.error("No hay datos disponibles.");
+  if (!data) return console.error("No hay datos disponibles en el JSON.");
 
+  // --- Enviamos la lista de boyas al servidor para que lo reenvíe a los clientes
+  if (data.buoys) {
+    console.log("Enviando datos de boyas al servidor...");
+    socket.emit("updateBuoys", data.buoys);
+  }
+
+  if (!data.positions) return console.error("No hay datos de 'positions' en el JSON.");
+
+  // Para cada barco en 'positions', iniciamos su simulación
   Object.entries(data.positions).forEach(([boatName, positions]) => {
     let index = 0;
 
@@ -57,7 +66,7 @@ const startBoatSimulation = () => {
         longitude: position.n,
         speed: position.s,
         azimuth: position.c,
-        timestamp: position.t // Incluimos el timestamp
+        timestamp: position.t
       };
 
       console.log(`Enviando datos de ${boatName}:`, boatInfo);
@@ -66,12 +75,12 @@ const startBoatSimulation = () => {
       index++;
       const nextPosition = positions[index];
       if (nextPosition) {
-        const delay = nextPosition.t - position.t;
-        setTimeout(sendNextPosition, 30); //cambiar el 30 por delay para mostrar a tiempo real
-      } 
+        // Aquí podrías usar (nextPosition.t - position.t) para tiempo real
+        setTimeout(sendNextPosition, 30);
+      }
     };
 
-    // Iniciar la simulación después de un retraso inicial
+    // Iniciar la simulación después de un retraso inicial (opcional)
     const initialDelay = positions[0].t - Date.now();
     setTimeout(sendNextPosition, initialDelay > 0 ? initialDelay : 0);
   });
