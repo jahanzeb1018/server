@@ -1,3 +1,4 @@
+// trajectoryService.js
 const fs = require("fs");
 const path = require("path");
 const io = require("socket.io-client");
@@ -7,7 +8,7 @@ const socket = io("https://server-production-c33c.up.railway.app", {
   query: { role: "boat" }
 });
 
-// Ruta del archivo JSON con las posiciones
+// Ruta del archivo JSON con las posiciones y boyas
 const jsonFilePath = path.join(__dirname, "data", "boat_positions.json");
 
 // Colores asignados a los barcos (para evitar repetidos)
@@ -31,7 +32,16 @@ const loadJsonData = () => {
 // Función para iniciar la simulación de los barcos
 const startBoatSimulation = () => {
   const data = loadJsonData();
-  if (!data || !data.positions) return console.error("No hay datos disponibles.");
+  if (!data) return console.error("No hay datos disponibles en boat_positions.json.");
+
+  // 1. Enviar boyas al servidor (solo si existen en el JSON)
+  if (data.buoys && data.buoys.length > 0) {
+    console.log("Enviando boyas al servidor...");
+    socket.emit("sendBuoys", data.buoys);
+  }
+
+  // 2. Procesar las posiciones de los barcos
+  if (!data.positions) return console.error("No hay 'positions' en el archivo JSON.");
 
   Object.entries(data.positions).forEach(([boatName, positions]) => {
     let index = 0;
@@ -57,7 +67,7 @@ const startBoatSimulation = () => {
         longitude: position.n,
         speed: position.s,
         azimuth: position.c,
-        timestamp: position.t // Incluimos el timestamp
+        timestamp: position.t // timestamp
       };
 
       console.log(`Enviando datos de ${boatName}:`, boatInfo);
@@ -67,13 +77,17 @@ const startBoatSimulation = () => {
       const nextPosition = positions[index];
       if (nextPosition) {
         const delay = nextPosition.t - position.t;
-        setTimeout(sendNextPosition, 30); //cambiar el 30 por delay para mostrar a tiempo real
-      } 
+        // Para simular en tiempo real usa "delay",
+        // aquí lo reducimos a 30 ms para una demo rápida:
+        setTimeout(sendNextPosition, 30);
+      }
     };
 
-    // Iniciar la simulación después de un retraso inicial
-    const initialDelay = positions[0].t - Date.now();
-    setTimeout(sendNextPosition, initialDelay > 0 ? initialDelay : 0);
+    // Iniciar la simulación
+    if (positions.length > 0) {
+      // Omitimos el cálculo de "initialDelay" si no lo necesitas
+      sendNextPosition();
+    }
   });
 };
 

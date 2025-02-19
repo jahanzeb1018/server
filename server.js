@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
@@ -19,7 +20,7 @@ const io = socketIo(server, {
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL, 
   ssl: {
-    rejectUnauthorized: false, // Necesario para conexiones seguras
+    rejectUnauthorized: false, // Para conexiones seguras
   }
 });
 
@@ -63,30 +64,40 @@ const baseNames = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"];
 const availableColors = ["red", "blue", "yellow", "green", "purple"];
 
 // Estados en memoria (por Socket ID)
-let connectedBoats = []; // Array de IDs de sockets que son "barcos"
-let usedColors = {};     // Mapeo: socket.id -> color
+let connectedBoats = [];    // Array de socket IDs que son "barcos"
+let usedColors = {};        // Mapeo: socket.id -> color
+let globalBuoys = [];       // Boyas cargadas en memoria
 
-// Manejo de conexiones de WebSocket
 io.on("connection", (socket) => {
   // Leemos el "role" que el cliente nos manda
   const role = socket.handshake.query.role;
   console.log(`🔌 Nuevo cliente conectado: ${socket.id}, role: ${role}`);
 
+  // ========================================================================
+  // 1. Cuando recibimos "sendBuoys", guardamos las boyas en memoria y las
+  //    emitimos a TODOS los clientes para que se dibujen inmediatamente.
+  // ========================================================================
+  socket.on("sendBuoys", (buoys) => {
+    console.log("Servidor recibió boyas:", buoys);
+    globalBuoys = buoys;
+    io.emit("buoys", buoys); // Reenviamos a todos
+  });
+
+  // ========================================================================
+  // 2. Manejo de conexiones "boat" (barcos)
+  // ========================================================================
   if (role === "boat") {
-    // Este socket será gestionado como un BARCO
     console.log("🔵 Conexión identificada como BARCO:", socket.id);
 
-    // Asignar color único al barco
-    const color = availableColors.find(c => !Object.values(usedColors).includes(c));
+    // Asignar color único
+    const color = availableColors.find((c) => !Object.values(usedColors).includes(c));
     if (!color) {
       socket.emit("assignBoatInfo", { error: "No hay colores disponibles" });
       return;
     }
-
     usedColors[socket.id] = color;
     connectedBoats.push(socket.id);
 
-    // Asigna el nombre según el índice (Barco 1, Barco 2...)
     reassignBoatNames();
 
     // Escucha posición del barco en tiempo real
@@ -106,10 +117,7 @@ io.on("connection", (socket) => {
       io.emit("updateLocation", boatInfo);
     });
 
-    // ---------------------------
-    // NUEVO: Reenviar "boatFinished"
-    // cuando el barco avise de que terminó su ruta
-    // ---------------------------
+    // Evento "boatFinished"
     socket.on("boatFinished", (data) => {
       console.log(`🚩 Barco finalizó ruta: ${data.name}`);
       io.emit("boatFinished", data);
@@ -120,15 +128,22 @@ io.on("connection", (socket) => {
       console.log("🔴 BARCO desconectado:", socket.id);
 
       // Eliminar de la lista de barcos
-      connectedBoats = connectedBoats.filter(id => id !== socket.id);
+      connectedBoats = connectedBoats.filter((id) => id !== socket.id);
       delete usedColors[socket.id];
 
       reassignBoatNames();
     });
 
+  // ========================================================================
+  // 3. Manejo de conexiones "viewer"
+  // ========================================================================
   } else {
-    // Conexión como "viewer"
     console.log("🟢 Conexión identificada como VIEWER:", socket.id);
+
+    // Al conectar un viewer, le enviamos las boyas actuales (si existen)
+    if (globalBuoys.length > 0) {
+      socket.emit("buoys", globalBuoys);
+    }
 
     socket.on("disconnect", () => {
       console.log("🟡 VIEWER desconectado:", socket.id);
@@ -136,7 +151,7 @@ io.on("connection", (socket) => {
   }
 });
 
-// Reasignar nombres de barcos en orden (según el array connectedBoats)
+// Reasignar nombres de barcos en orden
 function reassignBoatNames() {
   connectedBoats.forEach((id, index) => {
     const name = baseNames[index];
