@@ -1,14 +1,8 @@
-// server.js
-
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 const { Pool } = require("pg"); // Conexión a PostgreSQL
-const path = require("path");
-
-// 1) Requerimos el JSON que contiene las boyas
-const dataJson = require("./boat_positions.json");
 
 const app = express();
 app.use(cors());
@@ -112,7 +106,10 @@ io.on("connection", (socket) => {
       io.emit("updateLocation", boatInfo);
     });
 
-    // El barco avisa que terminó su ruta
+    // ---------------------------
+    // NUEVO: Reenviar "boatFinished"
+    // cuando el barco avise de que terminó su ruta
+    // ---------------------------
     socket.on("boatFinished", (data) => {
       console.log(`🚩 Barco finalizó ruta: ${data.name}`);
       io.emit("boatFinished", data);
@@ -194,11 +191,6 @@ const saveLocationToDb = async (boatInfo) => {
     console.error("❌ Error guardando ubicación:", error);
   }
 };
-
-// 2) ENDPOINT para devolver las boyas (tomadas del JSON)
-app.get("/api/buoys", (req, res) => {
-  res.json(dataJson.buoys);
-});
 
 // Iniciar el servidor en Railway
 const PORT = process.env.PORT || 8080;
