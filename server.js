@@ -4,16 +4,19 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 const { Pool } = require("pg"); // Conexión a PostgreSQL
+const bcrypt = require("bcrypt"); // Para encriptar contraseñas
 
 const app = express();
 
-// 🔹 Habilitar CORS solo para tu frontend
+// Habilitar CORS solo para tu frontend
 app.use(cors({
     origin: "https://jahanzeb1018.github.io",
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"],
     credentials: true
 }));
+
+app.use(express.json()); // Para parsear JSON en las solicitudes
 
 const server = http.createServer(app);
 
@@ -24,7 +27,7 @@ const io = socketIo(server, {
         allowedHeaders: ["Content-Type"],
         credentials: true
     },
-    transports: ["websocket", "polling"], // 🔹 Forzar uso de WebSockets
+    transports: ["websocket", "polling"], // Forzar uso de WebSockets
 });
 
 // Conexión a PostgreSQL en Railway
@@ -37,28 +40,15 @@ const pool = new Pool({
 const createTables = async () => {
     try {
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS boats (
+            CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
-                name VARCHAR(255) UNIQUE NOT NULL,
-                color VARCHAR(50)
+                username VARCHAR(255) UNIQUE NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL
             );
         `);
 
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS locations (
-                id SERIAL PRIMARY KEY,
-                boat_id INTEGER REFERENCES boats(id) ON DELETE CASCADE,
-                latitude DOUBLE PRECISION NOT NULL,
-                longitude DOUBLE PRECISION NOT NULL,
-                azimuth DOUBLE PRECISION NOT NULL,
-                speed DOUBLE PRECISION NOT NULL,
-                pitch DOUBLE PRECISION,
-                roll DOUBLE PRECISION,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        console.log("✅ Tablas creadas/verificadas correctamente.");
+        console.log("✅ Tabla de usuarios creada/verificada correctamente.");
     } catch (error) {
         console.error("❌ Error al crear tablas:", error);
     }
@@ -66,114 +56,58 @@ const createTables = async () => {
 
 createTables();
 
-let connectedBoats = [];
-let usedColors = {};
-let globalBuoys = [];
+// Ruta para registrar un nuevo usuario
+app.post("/register", async (req, res) => {
+    const { username, email, password } = req.body;
 
-io.on("connection", (socket) => {
-    const role = socket.handshake.query.role;
-    console.log(`🔌 Nuevo cliente conectado: ${socket.id}, role: ${role}`);
-
-    socket.on("sendBuoys", (buoys) => {
-        console.log("Servidor recibió boyas:", buoys);
-        globalBuoys = buoys;
-        io.emit("buoys", buoys);
-    });
-
-    if (role === "boat") {
-        console.log("🔵 Conexión identificada como BARCO:", socket.id);
-
-        const color = ["red", "blue", "yellow", "green", "purple"]
-            .find(c => !Object.values(usedColors).includes(c));
-
-        if (!color) {
-            socket.emit("assignBoatInfo", { error: "No hay colores disponibles" });
-            return;
+    try {
+        // Verificar si el email ya está registrado
+        const emailCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        if (emailCheck.rows.length > 0) {
+            return res.status(400).json({ error: "El email ya está registrado" });
         }
 
-        usedColors[socket.id] = color;
-        connectedBoats.push(socket.id);
-        reassignBoatNames();
+        // Encriptar la contraseña
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        socket.on("sendLocation", (data) => {
-            const boatInfo = {
-                id: socket.id,
-                name: getBoatName(socket.id),
-                color: usedColors[socket.id],
-                ...data,
-            };
+        // Insertar el nuevo usuario en la base de datos
+        const result = await pool.query(
+            "INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email",
+            [username, email, hashedPassword]
+        );
 
-            console.log("📡 Ubicación recibida:", boatInfo);
-            saveLocationToDb(boatInfo);
-            io.emit("updateLocation", boatInfo);
-        });
-
-        socket.on("boatFinished", (data) => {
-            console.log(`🚩 Barco finalizó ruta: ${data.name}`);
-            io.emit("boatFinished", data);
-        });
-
-        socket.on("disconnect", () => {
-            console.log("🔴 BARCO desconectado:", socket.id);
-            connectedBoats = connectedBoats.filter(id => id !== socket.id);
-            delete usedColors[socket.id];
-            reassignBoatNames();
-        });
-
-    } else {
-        console.log("🟢 Conexión identificada como VIEWER:", socket.id);
-
-        if (globalBuoys.length > 0) {
-            socket.emit("buoys", globalBuoys);
-        }
-
-        socket.on("disconnect", () => {
-            console.log("🟡 VIEWER desconectado:", socket.id);
-        });
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error("❌ Error al registrar usuario:", error);
+        res.status(500).json({ error: "Error al registrar usuario" });
     }
 });
 
-function reassignBoatNames() {
-    connectedBoats.forEach((id, index) => {
-        const name = ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"][index];
-        if (name) {
-            io.to(id).emit("assignBoatInfo", { name, color: usedColors[id] });
-            console.log(`📌 Asignado: ${id} -> ${name}`);
-        }
-    });
-}
+// Ruta para iniciar sesión
+app.post("/login", async (req, res) => {
+    const { email, password } = req.body;
 
-function getBoatName(id) {
-    const index = connectedBoats.indexOf(id);
-    return ["Barco 1", "Barco 2", "Barco 3", "Barco 4", "Barco 5"][index];
-}
-
-const saveLocationToDb = async (boatInfo) => {
     try {
-        const result = await pool.query("SELECT id FROM boats WHERE name = $1", [boatInfo.name]);
-        
-        let boatId;
-        if (result.rows.length === 0) {
-            const insertBoat = await pool.query(
-                "INSERT INTO boats (name, color) VALUES ($1, $2) RETURNING id",
-                [boatInfo.name, boatInfo.color]
-            );
-            boatId = insertBoat.rows[0].id;
-            console.log(`🚢 Barco registrado: ${boatInfo.name}`);
-        } else {
-            boatId = result.rows[0].id;
+        // Buscar el usuario por email
+        const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        if (user.rows.length === 0) {
+            return res.status(400).json({ error: "Email o contraseña incorrectos" });
         }
 
-        await pool.query(
-            "INSERT INTO locations (boat_id, latitude, longitude, azimuth, speed, pitch, roll) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-            [boatId, boatInfo.latitude, boatInfo.longitude, boatInfo.azimuth, boatInfo.speed, boatInfo.pitch, boatInfo.roll]
-        );
+        // Verificar la contraseña
+        const validPassword = await bcrypt.compare(password, user.rows[0].password);
+        if (!validPassword) {
+            return res.status(400).json({ error: "Email o contraseña incorrectos" });
+        }
 
-        console.log(`📍 Ubicación del barco ${boatInfo.name} guardada.`);
+        // Devolver la información del usuario (sin la contraseña)
+        const { id, username, email: userEmail } = user.rows[0];
+        res.status(200).json({ id, username, email: userEmail });
     } catch (error) {
-        console.error("❌ Error guardando ubicación:", error);
+        console.error("❌ Error al iniciar sesión:", error);
+        res.status(500).json({ error: "Error al iniciar sesión" });
     }
-};
+});
 
 // Iniciar el servidor en Railway
 const PORT = process.env.PORT || 8080;
