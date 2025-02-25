@@ -17,7 +17,7 @@ app.use(cors({
 }));
 
 app.use(express.json()); // Para parsear JSON en las solicitudes
-
+app.options("*", cors());
 const server = http.createServer(app);
 
 const io = socketIo(server, {
