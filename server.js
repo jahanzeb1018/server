@@ -11,8 +11,8 @@ const app = express();
 // Habilitar CORS solo para tu frontend
 app.use(cors({
     origin: "https://jahanzeb1018.github.io",
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
 }));
 
