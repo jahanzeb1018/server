@@ -9,30 +9,22 @@ require("dotenv").config();
 
 const app = express();
 
-
-
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-      "https://jahanzeb1018.github.io/BCN-REGATTA/" // Permite solicitudes desde este origen
-      ],
-    methods: ["GET", "POST", "PUT", "DELETE"], // Métodos HTTP permitidos
-    allowedHeaders: ["Content-Type", "Authorization"],  
-    credentials: true, // Permite el envío de credenciales (cookies, tokens)
-  }),  
-
-); // For parsing application/json
-
+const corsOptions = {
+  origin: [
+    "http://localhost:5173",
+    "https://jahanzeb1018.github.io/BCN-REGATTA/",
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
+
 
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: {
-    origin: "http://localhost:5173", // Allow connections from any origin
-    methods: ["GET", "POST"],
-    credentials: true, // Permite el envío de credenciales
-  },
+  cors: corsOptions,
 });
 
 // MongoDB Connection
