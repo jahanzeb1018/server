@@ -13,8 +13,12 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // Permite solicitudes desde este origen
+    origin: [
+      "http://localhost:5173",
+      "https://jahanzeb1018.github.io/BCN-REGATTA/" // Permite solicitudes desde este origen
+      ],
     methods: ["GET", "POST", "PUT", "DELETE"], // Métodos HTTP permitidos
+    allowedHeaders: ["Content-Type", "Authorization"],  
     credentials: true, // Permite el envío de credenciales (cookies, tokens)
   }),  
 
