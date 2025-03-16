@@ -6,7 +6,11 @@
     "start": "node server.js & node trajectoryService.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.12.1",
     "express": "^4.17.1",
     "pg": "^8.7.1",
     "socket.io": "^4.0.0",
