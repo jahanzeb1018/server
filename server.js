@@ -8,17 +8,19 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
-app.use(cors());
+
+
+
 app.use(
   cors({
     origin: "http://localhost:5173", // Permite solicitudes desde este origen
     methods: ["GET", "POST", "PUT", "DELETE"], // Métodos HTTP permitidos
     credentials: true, // Permite el envío de credenciales (cookies, tokens)
   }),  
-  
-  express.json()
 
 ); // For parsing application/json
+
+app.use(express.json());
 
 const server = http.createServer(app);
 const io = socketIo(server, {
