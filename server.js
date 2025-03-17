@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
@@ -17,7 +18,6 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
-
 
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -93,117 +93,35 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Socket.io Logic
-let connectedBoats = []; // Array of socket IDs that are "boats"
-let usedColors = {}; // Mapping: socket.id -> color
-let globalBuoys = []; // Buoys loaded in memory
-
-io.on("connection", (socket) => {
-  const role = socket.handshake.query.role;
-  console.log(`🔌 New client connected: ${socket.id}, role: ${role}`);
-
-  // Handle "sendBuoys" event
-  socket.on("sendBuoys", (buoys) => {
-    console.log("Server received buoys:", buoys);
-    globalBuoys = buoys;
-    io.emit("buoys", buoys); // Broadcast to all clients
-  });
-
-  // Handle "boat" connections
-  if (role === "boat") {
-    console.log("🔵 Connection identified as BOAT:", socket.id);
-
-    // Assign a unique color
-    const color = availableColors.find(
-      (c) => !Object.values(usedColors).includes(c)
-    );
-    if (!color) {
-      socket.emit("assignBoatInfo", { error: "No colors available" });
-      return;
-    }
-    usedColors[socket.id] = color;
-    connectedBoats.push(socket.id);
-
-    reassignBoatNames();
-
-    // Listen for boat location updates
-    socket.on("sendLocation", (data) => {
-      const boatInfo = {
-        id: socket.id,
-        name: getBoatName(socket.id),
-        color: usedColors[socket.id],
-        ...data,
-      };
-
-      console.log("📡 Location received:", boatInfo);
-      io.emit("updateLocation", boatInfo); // Broadcast to all clients
+// Nuevo Endpoint: Crear Competición
+app.post("/api/competitions", async (req, res) => {
+  try {
+    const { name } = req.body;
+    const newRace = new Race({
+      name,
+      buoys: [],
+      positions: {},
+      startTmst: Date.now(),
+      endTmst: null, // Competición en curso
     });
-
-    // Handle "boatFinished" event
-    socket.on("boatFinished", (data) => {
-      console.log(`🚩 Boat finished route: ${data.name}`);
-      io.emit("boatFinished", data);
-    });
-
-    // Handle disconnection
-    socket.on("disconnect", () => {
-      console.log("🔴 BOAT disconnected:", socket.id);
-      connectedBoats = connectedBoats.filter((id) => id !== socket.id);
-      delete usedColors[socket.id];
-      reassignBoatNames();
-    });
-  } else {
-    // Handle "viewer" connections
-    console.log("🟢 Connection identified as VIEWER:", socket.id);
-
-    // Send existing buoys to the viewer
-    if (globalBuoys.length > 0) {
-      socket.emit("buoys", globalBuoys);
-    }
-
-    socket.on("disconnect", () => {
-      console.log("🟡 VIEWER disconnected:", socket.id);
-    });
+    await newRace.save();
+    res.status(201).json({ message: "Competition created", race: newRace });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Reassign boat names in order
-function reassignBoatNames() {
-  connectedBoats.forEach((id, index) => {
-    const name = baseNames[index];
-    if (name) {
-      io.to(id).emit("assignBoatInfo", { name, color: usedColors[id] });
-      console.log(`📌 Assigned: ${id} -> ${name}`);
-    }
-  });
-}
-
-// Get boat name by socket ID
-function getBoatName(id) {
-  const index = connectedBoats.indexOf(id);
-  return baseNames[index];
-}
-
-// Base names and colors
-const baseNames = ["Boat 1", "Boat 2", "Boat 3", "Boat 4", "Boat 5"];
-const availableColors = ["red", "blue", "yellow", "green", "purple"];
-
-
-// Guardar una regata en la BD (desde un JSON, por ejemplo)
+// Endpoint existente para guardar regatas
 app.post("/api/races", async (req, res) => {
   try {
-    // req.body contendrá algo similar a lo que tenías en boat_positions.json
-    // Ej: { name, buoys, positions, startTmst, endTmst }
     const { name, buoys, positions, startTmst, endTmst } = req.body;
-
     const newRace = new Race({
       name,
       buoys,
       positions,
       startTmst,
-      endTmst
+      endTmst,
     });
-
     await newRace.save();
     res.status(201).json({ message: "Race saved", race: newRace });
   } catch (err) {
@@ -234,8 +152,119 @@ app.get("/api/races/:id", async (req, res) => {
   }
 });
 
+// Socket.io Logic
+let connectedBoats = []; // Array de socket IDs de barcos
+let usedColors = {}; // Mapping: socket.id -> color
+let globalBuoys = []; // Boyas cargadas en memoria
 
-// Start the server
+io.on("connection", (socket) => {
+  const role = socket.handshake.query.role;
+  console.log(`🔌 New client connected: ${socket.id}, role: ${role}`);
+
+  // Manejar evento "sendBuoys"
+  socket.on("sendBuoys", (buoys) => {
+    console.log("Server received buoys:", buoys);
+    globalBuoys = buoys;
+    io.emit("buoys", buoys); // Difundir a todos los clientes
+  });
+
+  // Conexiones de barcos
+  if (role === "boat") {
+    console.log("🔵 Connection identified as BOAT:", socket.id);
+
+    // Asignar un color único
+    const availableColors = ["red", "blue", "yellow", "green", "purple"];
+    const color = availableColors.find((c) => !Object.values(usedColors).includes(c));
+    if (!color) {
+      socket.emit("assignBoatInfo", { error: "No colors available" });
+      return;
+    }
+    usedColors[socket.id] = color;
+    connectedBoats.push(socket.id);
+
+    reassignBoatNames();
+
+    // Escuchar actualizaciones de ubicación
+    socket.on("sendLocation", async (data) => {
+      // Si se incluye raceId y boatName, actualizamos la competición en la BD
+      if (data.raceId && data.boatName) {
+        try {
+          const race = await Race.findById(data.raceId);
+          if (race) {
+            if (!race.positions) race.positions = {};
+            if (!race.positions[data.boatName]) race.positions[data.boatName] = [];
+            race.positions[data.boatName].push({
+              a: data.latitude,
+              n: data.longitude,
+              t: data.timestamp || Date.now(),
+              s: data.speed || 0,
+              c: data.azimuth || 0,
+            });
+            await race.save();
+          }
+        } catch (err) {
+          console.error("Error updating race positions:", err);
+        }
+      }
+      // Difundir actualización de ubicación
+      const boatInfo = {
+        id: socket.id,
+        name: data.boatName || getBoatName(socket.id),
+        color: usedColors[socket.id],
+        ...data,
+      };
+
+      console.log("📡 Location received:", boatInfo);
+      io.emit("updateLocation", boatInfo);
+    });
+
+    // Manejar evento "boatFinished"
+    socket.on("boatFinished", (data) => {
+      console.log(`🚩 Boat finished route: ${data.boatName}`);
+      io.emit("boatFinished", data);
+    });
+
+    // Desconexión
+    socket.on("disconnect", () => {
+      console.log("🔴 BOAT disconnected:", socket.id);
+      connectedBoats = connectedBoats.filter((id) => id !== socket.id);
+      delete usedColors[socket.id];
+      reassignBoatNames();
+    });
+  } else {
+    // Conexiones de viewer
+    console.log("🟢 Connection identified as VIEWER:", socket.id);
+
+    if (globalBuoys.length > 0) {
+      socket.emit("buoys", globalBuoys);
+    }
+
+    socket.on("disconnect", () => {
+      console.log("🟡 VIEWER disconnected:", socket.id);
+    });
+  }
+});
+
+// Reasignar nombres de barcos
+function reassignBoatNames() {
+  const baseNames = ["Boat 1", "Boat 2", "Boat 3", "Boat 4", "Boat 5"];
+  connectedBoats.forEach((id, index) => {
+    const name = baseNames[index];
+    if (name) {
+      io.to(id).emit("assignBoatInfo", { name, color: usedColors[id] });
+      console.log(`📌 Assigned: ${id} -> ${name}`);
+    }
+  });
+}
+
+// Obtener nombre de barco por socket ID
+function getBoatName(id) {
+  const baseNames = ["Boat 1", "Boat 2", "Boat 3", "Boat 4", "Boat 5"];
+  const index = connectedBoats.indexOf(id);
+  return baseNames[index];
+}
+
+// Iniciar el servidor
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
