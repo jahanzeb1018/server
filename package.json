@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "npm run seed && node server.js",
+    "start": "npm run seed && node server.js && node trajectoryService.js",
     "seed": "node seedRace.js"
   },
   "dependencies": {
