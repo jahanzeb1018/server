@@ -188,7 +188,6 @@ function getBoatName(id) {
 const baseNames = ["Boat 1", "Boat 2", "Boat 3", "Boat 4", "Boat 5"];
 const availableColors = ["red", "blue", "yellow", "green", "purple"];
 
-const Race = require("./models/Race"); // Importa el modelo Race
 
 // Guardar una regata en la BD (desde un JSON, por ejemplo)
 app.post("/api/races", async (req, res) => {
