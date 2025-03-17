@@ -19,7 +19,7 @@ async function main() {
     const jsonData = JSON.parse(rawData);
 
     // 3. Opcional: verifica si ya existe una regata con cierto nombre
-    const existing = await Race.findOne({ name: "Regata Auto" });
+    const existing = await Race.findOne({ name: "Regata Auto2" });
     if (existing) {
       console.log("⚠️ A race named 'Regata Auto' already exists. Skipping seed.");
       return;
