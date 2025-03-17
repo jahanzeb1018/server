@@ -6,7 +6,7 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
-
+const Race = require("./models/Race");
 const app = express();
 
 const corsOptions = {
@@ -187,6 +187,54 @@ function getBoatName(id) {
 // Base names and colors
 const baseNames = ["Boat 1", "Boat 2", "Boat 3", "Boat 4", "Boat 5"];
 const availableColors = ["red", "blue", "yellow", "green", "purple"];
+
+const Race = require("./models/Race"); // Importa el modelo Race
+
+// Guardar una regata en la BD (desde un JSON, por ejemplo)
+app.post("/api/races", async (req, res) => {
+  try {
+    // req.body contendrá algo similar a lo que tenías en boat_positions.json
+    // Ej: { name, buoys, positions, startTmst, endTmst }
+    const { name, buoys, positions, startTmst, endTmst } = req.body;
+
+    const newRace = new Race({
+      name,
+      buoys,
+      positions,
+      startTmst,
+      endTmst
+    });
+
+    await newRace.save();
+    res.status(201).json({ message: "Race saved", race: newRace });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Listar todas las regatas
+app.get("/api/races", async (req, res) => {
+  try {
+    const races = await Race.find().sort({ createdAt: -1 });
+    res.json(races);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Obtener una regata por ID
+app.get("/api/races/:id", async (req, res) => {
+  try {
+    const race = await Race.findById(req.params.id);
+    if (!race) {
+      return res.status(404).json({ error: "Race not found" });
+    }
+    res.json(race);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Start the server
 const PORT = process.env.PORT || 8080;

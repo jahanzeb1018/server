@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js & node trajectoryService.js"
+    "start": "npm run seed && node server.js",
+    "seed": "node seedRace.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
