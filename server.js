@@ -237,26 +237,27 @@ io.on("connection", (socket) => {
       delete usedColors[socket.id];
       reassignBoatNames();
 
-      // Si el socket tenía asignado un raceId, verificar si quedan barcos conectados para esa competición
+      // Si el socket tenía asignado un raceId, esperar un período de gracia para finalizar la competición
       if (socket.raceId) {
-        const raceId = socket.raceId;
-        // Recorrer todos los sockets conectados y filtrar aquellos que sean barcos con el mismo raceId
-        let boatsInRace = [];
-        io.sockets.sockets.forEach((s) => {
-          if (s.handshake.query.role === "boat" && s.raceId === raceId) {
-            boatsInRace.push(s.id);
+        const localRaceId = socket.raceId;
+        // Esperar 30 segundos antes de chequear si quedan barcos conectados para ese raceId
+        setTimeout(() => {
+          let boatsInRace = [];
+          io.sockets.sockets.forEach((s) => {
+            if (s.handshake.query.role === "boat" && s.raceId === localRaceId) {
+              boatsInRace.push(s.id);
+            }
+          });
+          if (boatsInRace.length === 0) {
+            Race.findByIdAndUpdate(localRaceId, { endTmst: Date.now() })
+              .then(() => {
+                console.log(`🏁 Race ${localRaceId} marked as finished.`);
+              })
+              .catch((err) => {
+                console.error(`Error finishing race ${localRaceId}:`, err);
+              });
           }
-        });
-        // Si no quedan barcos conectados para este raceId, marcar la competición como finalizada
-        if (boatsInRace.length === 0) {
-          Race.findByIdAndUpdate(raceId, { endTmst: Date.now() })
-            .then(() => {
-              console.log(`🏁 Race ${raceId} marked as finished.`);
-            })
-            .catch((err) => {
-              console.error(`Error finishing race ${raceId}:`, err);
-            });
-        }
+        }, 30000); // Período de gracia de 30 segundos
       }
     });
   } else {
