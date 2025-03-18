@@ -185,6 +185,7 @@ io.on("connection", (socket) => {
 
     // Escuchar actualizaciones de ubicación
     socket.on("sendLocation", async (data) => {
+      console.log("📡 Location received:", data); // Depuración
       // Si se incluye raceId y boatName, actualizamos la competición en la BD
       if (data.raceId && data.boatName) {
         try {
