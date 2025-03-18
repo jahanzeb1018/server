@@ -185,7 +185,13 @@ io.on("connection", (socket) => {
 
     // Escuchar actualizaciones de ubicación
     socket.on("sendLocation", async (data) => {
-      console.log("📡 Location received:", data); // Depuración
+      console.log("📡 Location received:", data);
+      
+      // Almacenar el raceId en el socket para referencia posterior
+      if (data.raceId) {
+        socket.raceId = data.raceId;
+      }
+
       // Si se incluye raceId y boatName, actualizamos la competición en la BD
       if (data.raceId && data.boatName) {
         try {
@@ -230,6 +236,28 @@ io.on("connection", (socket) => {
       connectedBoats = connectedBoats.filter((id) => id !== socket.id);
       delete usedColors[socket.id];
       reassignBoatNames();
+
+      // Si el socket tenía asignado un raceId, verificar si quedan barcos conectados para esa competición
+      if (socket.raceId) {
+        const raceId = socket.raceId;
+        // Recorrer todos los sockets conectados y filtrar aquellos que sean barcos con el mismo raceId
+        let boatsInRace = [];
+        io.sockets.sockets.forEach((s) => {
+          if (s.handshake.query.role === "boat" && s.raceId === raceId) {
+            boatsInRace.push(s.id);
+          }
+        });
+        // Si no quedan barcos conectados para este raceId, marcar la competición como finalizada
+        if (boatsInRace.length === 0) {
+          Race.findByIdAndUpdate(raceId, { endTmst: Date.now() })
+            .then(() => {
+              console.log(`🏁 Race ${raceId} marked as finished.`);
+            })
+            .catch((err) => {
+              console.error(`Error finishing race ${raceId}:`, err);
+            });
+        }
+      }
     });
   } else {
     // Conexiones de viewer
