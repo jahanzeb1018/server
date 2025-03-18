@@ -192,22 +192,23 @@ io.on("connection", (socket) => {
         socket.raceId = data.raceId;
       }
 
-      // Si se incluye raceId y boatName, actualizamos la competición en la BD
+      // Si se incluye raceId y boatName, usamos $push para acumular posiciones
       if (data.raceId && data.boatName) {
         try {
-          const race = await Race.findById(data.raceId);
-          if (race) {
-            if (!race.positions) race.positions = {};
-            if (!race.positions[data.boatName]) race.positions[data.boatName] = [];
-            race.positions[data.boatName].push({
-              a: data.latitude,
-              n: data.longitude,
-              t: data.timestamp || Date.now(),
-              s: data.speed || 0,
-              c: data.azimuth || 0,
-            });
-            await race.save();
-          }
+          await Race.findByIdAndUpdate(
+            data.raceId,
+            {
+              $push: {
+                [`positions.${data.boatName}`]: {
+                  a: data.latitude,
+                  n: data.longitude,
+                  t: data.timestamp || Date.now(),
+                  s: data.speed || 0,
+                  c: data.azimuth || 0,
+                }
+              }
+            }
+          );
         } catch (err) {
           console.error("Error updating race positions:", err);
         }
