@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
@@ -7,6 +8,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const Race = require("./models/Race");
+const User = require("./models/User");
 const app = express();
 
 const corsOptions = {
@@ -36,16 +38,7 @@ mongoose
     console.error("❌ MongoDB connection error:", err);
   });
 
-// User Schema
-const userSchema = new mongoose.Schema({
-  username: { type: String, unique: true, required: true },
-  email: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-});
-
-const User = mongoose.model("User", userSchema);
-
-// Middleware to authenticate token
+// Middleware para autenticar token
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"];
   if (token == null) return res.sendStatus(401);
@@ -57,11 +50,21 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Middleware para verificar rol admin
+function isAdmin(req, res, next) {
+  if (req.user && req.user.role === "admin") {
+    next();
+  } else {
+    res.status(403).json({ error: "Admin access required" });
+  }
+}
+
 // Register Endpoint
 app.post("/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
+    // Se ignora cualquier rol enviado y se deja por defecto "user"
     const user = new User({ username, email, password: hashedPassword });
     await user.save();
     res.status(201).send("User registered");
@@ -79,11 +82,12 @@ app.post("/login", async (req, res) => {
   }
   try {
     if (await bcrypt.compare(password, user.password)) {
+      const payload = { username: user.username, role: user.role };
       const accessToken = jwt.sign(
-        { username: user.username },
+        payload,
         process.env.ACCESS_TOKEN_SECRET
       );
-      res.json({ accessToken });
+      res.json({ accessToken, role: user.role });
     } else {
       res.send("Not Allowed");
     }
@@ -92,7 +96,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Nuevo Endpoint: Crear Competición
+// Endpoint para crear competición
 app.post("/api/competitions", async (req, res) => {
   try {
     const { name } = req.body;
@@ -102,6 +106,7 @@ app.post("/api/competitions", async (req, res) => {
       positions: {},
       startTmst: Date.now(),
       endTmst: null, // Competición en curso
+      active: false  // Por defecto no activa
     });
     await newRace.save();
     res.status(201).json({ message: "Competition created", race: newRace });
@@ -110,7 +115,7 @@ app.post("/api/competitions", async (req, res) => {
   }
 });
 
-// Endpoint existente para guardar regatas
+// Endpoint para guardar regatas
 app.post("/api/races", async (req, res) => {
   try {
     const { name, buoys, positions, startTmst, endTmst } = req.body;
@@ -120,6 +125,7 @@ app.post("/api/races", async (req, res) => {
       positions,
       startTmst,
       endTmst,
+      active: false
     });
     await newRace.save();
     res.status(201).json({ message: "Race saved", race: newRace });
@@ -151,7 +157,42 @@ app.get("/api/races/:id", async (req, res) => {
   }
 });
 
-// Socket.io Logic
+// NUEVOS ENDPOINTS PARA COMPETICIÓN EN DIRECTO
+
+// GET active competition – cualquier usuario autenticado puede consultar
+app.get("/api/active-competition", authenticateToken, async (req, res) => {
+  try {
+    const activeRace = await Race.findOne({ active: true, endTmst: null });
+    if (!activeRace) {
+      return res.status(404).json({ error: "No active competition found" });
+    }
+    res.json(activeRace);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT active competition – solo admin puede actualizar cuál competición en directo se muestra
+app.put("/api/active-competition", authenticateToken, isAdmin, async (req, res) => {
+  const { raceId } = req.body;
+  if (!raceId) {
+    return res.status(400).json({ error: "raceId is required" });
+  }
+  try {
+    // Desactivar todas las competiciones en directo (que aún no han terminado)
+    await Race.updateMany({ endTmst: null }, { active: false });
+    // Activar la competición elegida
+    const updatedRace = await Race.findByIdAndUpdate(raceId, { active: true }, { new: true });
+    if (!updatedRace) {
+      return res.status(404).json({ error: "Race not found" });
+    }
+    res.json({ message: "Active competition updated", race: updatedRace });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Socket.io Logic (sin cambios en esta parte)
 let connectedBoats = []; // Array de socket IDs de barcos
 let usedColors = {}; // Mapping: socket.id -> color
 let globalBuoys = []; // Boyas cargadas en memoria

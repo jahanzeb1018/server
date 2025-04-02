@@ -1,12 +1,16 @@
-// models/Race.js
+// Race.js
 const mongoose = require("mongoose");
 
 const RaceSchema = new mongoose.Schema({
-  name: String,      // Nombre identificatorio de la carrera
-  buoys: Array,      // Array de boyas (cada elemento con lat, lng, name, etc.)
-  positions: Object, // Object con { "BoatName": [ {a,n,t,s,c...}, ... ], ... }
-  startTmst: Number, // Época de inicio
-  endTmst: Number,   // Época de fin
+  name: String,       // Nombre identificatorio de la carrera
+  buoys: Array,       // Array de boyas (cada elemento con lat, lng, name, etc.)
+  positions: Object,  // Object con { "BoatName": [ {a, n, t, s, c, ...}, ... ], ... }
+  startTmst: Number,  // Época de inicio
+  endTmst: Number,    // Época de fin
+  active: {           // Indica si esta competición se muestra en directo
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
