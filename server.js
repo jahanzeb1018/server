@@ -192,6 +192,25 @@ app.put("/api/active-competition", authenticateToken, isAdmin, async (req, res) 
   }
 });
 
+// Endpoint para actualizar una competición (solo admin)
+app.put("/api/competitions/:id", authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { buoys } = req.body;
+    // Actualiza el campo "buoys" en la competición indicada
+    const updatedRace = await Race.findByIdAndUpdate(
+      req.params.id,
+      { buoys },
+      { new: true }
+    );
+    if (!updatedRace) {
+      return res.status(404).json({ error: "Competición no encontrada" });
+    }
+    res.json({ message: "Competición actualizada correctamente", race: updatedRace });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete("/api/active-competition", authenticateToken, isAdmin, async (req, res) => {
   try {
     // Busca la competición activa (active true y que aún no ha terminado) y la desactiva
