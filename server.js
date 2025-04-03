@@ -192,6 +192,23 @@ app.put("/api/active-competition", authenticateToken, isAdmin, async (req, res) 
   }
 });
 
+app.delete("/api/active-competition", authenticateToken, isAdmin, async (req, res) => {
+  try {
+    // Busca la competición activa (active true y que aún no ha terminado) y la desactiva
+    const updatedRace = await Race.findOneAndUpdate(
+      { active: true, endTmst: null },
+      { active: false },
+      { new: true }
+    );
+    if (!updatedRace) {
+      return res.status(404).json({ error: "No active competition found" });
+    }
+    res.json({ message: "Active competition removed", race: updatedRace });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Socket.io Logic (sin cambios en esta parte)
 let connectedBoats = []; // Array de socket IDs de barcos
 let usedColors = {}; // Mapping: socket.id -> color
